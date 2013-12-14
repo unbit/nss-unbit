@@ -1,6 +1,7 @@
 #include <nss.h>
 #include <pwd.h>
 #include <grp.h>
+#include <shadow.h>
 #include <sys/stat.h>
 #include <string.h>
 #include <stdio.h>
@@ -32,7 +33,6 @@ static enum nss_status unbit_res(char *name, size_t name_len, char *home, size_t
 }
 
 static enum nss_status unbit_gres(char *name, size_t name_len, gid_t gid, struct group *res, char **buffer, size_t *buflen) {
-        res->gr_gid = gid;
         res->gr_passwd = *buffer;
         if (unbit_magic_buf("x", 1, buffer, buflen)) return NSS_STATUS_UNAVAIL;
 	if (*buflen < sizeof(char*)) return NSS_STATUS_UNAVAIL;
@@ -42,6 +42,18 @@ static enum nss_status unbit_gres(char *name, size_t name_len, gid_t gid, struct
         return NSS_STATUS_SUCCESS;
 }
 
+static enum nss_status unbit_sres(char *name, size_t name_len, struct spwd *res, char **buffer, size_t *buflen) {
+        res->sp_pwdp = *buffer;
+        if (unbit_magic_buf("!", 1, buffer, buflen)) return NSS_STATUS_UNAVAIL;
+	res->sp_lstchg = (long) ((time(NULL)/(3600*24))-1);
+	res->sp_min = -1;
+	res->sp_max = -1;
+	res->sp_warn = -1;
+	res->sp_inact = -1;
+	res->sp_expire = -1;
+	res->sp_flag = 0;
+        return NSS_STATUS_SUCCESS;
+}
 
 enum nss_status _nss_unbit_getpwnam_r(char *name, struct passwd *res, char *buffer, size_t buflen, int *errnop) {
 	struct stat st;
@@ -59,6 +71,8 @@ enum nss_status _nss_unbit_getpwnam_r(char *name, struct passwd *res, char *buff
 
 	if (st.st_uid != uid) return NSS_STATUS_UNAVAIL;
 	if (st.st_gid != uid) return NSS_STATUS_UNAVAIL;
+
+	res->pw_name = name;
 
 	return unbit_res(name, name_len, filename, (sizeof(UNBIT_HOME)-1) + name_len, uid, res, &buffer, &buflen);
 }
@@ -124,6 +138,29 @@ enum nss_status _nss_unbit_getgrnam_r(char *name, struct group *res, char *buffe
         if (st.st_uid != gid) return NSS_STATUS_UNAVAIL;
         if (st.st_gid != gid) return NSS_STATUS_UNAVAIL;
 
+	res->gr_name = name;
+
         return unbit_gres(name, name_len, gid, res, &buffer, &buflen);
 }
 
+enum nss_status _nss_unbit_getspnam_r(char *name, struct spwd *res, char *buffer, size_t buflen, int *errnop) {
+	struct stat st;
+        char filename[1024];
+        size_t name_len = strlen(name);
+        uid_t uid = atoi(name);
+        if (uid < UNBIT_MIN_UID) return NSS_STATUS_UNAVAIL;
+        // security check
+        if (name_len + sizeof(UNBIT_HOME) >= 1024) return NSS_STATUS_UNAVAIL;
+        memcpy(filename, UNBIT_HOME, sizeof(UNBIT_HOME));
+        memcpy(filename + (sizeof(UNBIT_HOME)-1), name, name_len);
+        filename[(sizeof(UNBIT_HOME)-1) + name_len] = 0;
+
+        if (stat(filename, &st)) return NSS_STATUS_UNAVAIL;
+
+        if (st.st_uid != uid) return NSS_STATUS_UNAVAIL;
+        if (st.st_gid != uid) return NSS_STATUS_UNAVAIL;
+
+	res->sp_namp = name;
+
+        return unbit_sres(name, name_len, res, &buffer, &buflen);	
+}
