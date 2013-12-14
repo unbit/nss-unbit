@@ -33,6 +33,7 @@ static enum nss_status unbit_res(char *name, size_t name_len, char *home, size_t
 }
 
 static enum nss_status unbit_gres(char *name, size_t name_len, gid_t gid, struct group *res, char **buffer, size_t *buflen) {
+	res->gr_gid = (gid_t) gid;
         res->gr_passwd = *buffer;
         if (unbit_magic_buf("x", 1, buffer, buflen)) return NSS_STATUS_UNAVAIL;
 	if (*buflen < sizeof(char*)) return NSS_STATUS_UNAVAIL;
