@@ -53,7 +53,7 @@ enum nss_status _nss_unbit_getpwnam_r(char *name, struct passwd *res, char *buff
 	if (name_len + sizeof(UNBIT_HOME) >= 1024) return NSS_STATUS_UNAVAIL;
 	memcpy(filename, UNBIT_HOME, sizeof(UNBIT_HOME));
 	memcpy(filename + (sizeof(UNBIT_HOME)-1), name, name_len);
-	filename[sizeof(UNBIT_HOME) + name_len] = 0;
+	filename[(sizeof(UNBIT_HOME)-1) + name_len] = 0;
 
 	if (stat(filename, &st)) return NSS_STATUS_UNAVAIL;
 
@@ -117,7 +117,7 @@ enum nss_status _nss_unbit_getgrnam_r(char *name, struct group *res, char *buffe
         if (name_len + sizeof(UNBIT_HOME) >= 1024) return NSS_STATUS_UNAVAIL;
         memcpy(filename, UNBIT_HOME, sizeof(UNBIT_HOME));
         memcpy(filename + (sizeof(UNBIT_HOME)-1), name, name_len);
-        filename[sizeof(UNBIT_HOME) + name_len] = 0;
+        filename[(sizeof(UNBIT_HOME)-1) + name_len] = 0;
 
         if (stat(filename, &st)) return NSS_STATUS_UNAVAIL;
 
