@@ -7,7 +7,7 @@
 #include <stdio.h>
 
 #define UNBIT_MIN_UID 30000
-#define UNBIT_HOME "/accounts/"
+#define UNBIT_HOME "/containers/"
 
 static int unbit_magic_buf(char *what, size_t len, char **buffer, size_t *buflen) {
 	if (len >= *buflen-1) return -1;	
