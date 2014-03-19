@@ -5,6 +5,9 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <stdio.h>
+#include <netdb.h>
+#include <math.h>
+#include <errno.h>
 
 #define UNBIT_MIN_UID 30000
 #define UNBIT_HOME "/containers/"
@@ -165,3 +168,102 @@ enum nss_status _nss_unbit_getspnam_r(char *name, struct spwd *res, char *buffer
 
         return unbit_sres(name, name_len, res, &buffer, &buflen);	
 }
+
+static uint32_t unbit_ip(uint32_t uid) {
+        if (uid < 30000) return 0;
+        // skip the first address as it is always 10.0.0.1
+        uint32_t addr = (uid - 30000)+2;
+        uint32_t addr0 = 0x0a000000;
+        return htonl(addr0 | (addr & 0x00ffffff));
+}
+
+static int ends_with(const char *name, const char *with) {
+        size_t n_len = strlen(name);
+        size_t w_len = strlen(with);
+
+        if (n_len > w_len) {
+                if (!strcmp(name + (n_len - w_len), with)) {
+                        return (n_len - w_len);
+                }
+        }
+
+        return 0;
+}
+
+static uint32_t str2num(const char *str, int len) {
+
+        int i;
+        size_t num = 0;
+
+        uint64_t delta = pow(10, len);
+
+        for (i = 0; i < len; i++) {
+		if (str[i] < 48 || str[i] > 57) return 0;
+                delta = delta / 10;
+                num += delta * (str[i] - 48);
+        }
+
+        return num;
+}
+
+
+enum nss_status _nss_unbit_gethostbyname2_r(
+    const char *name,
+    int af,
+    struct hostent * result,
+    char *buffer,
+    size_t buflen,
+    int *errnop,
+    int *h_errnop) {
+
+        if (af != AF_INET) goto end;
+        int l = ends_with(name, ".local");
+        if (l <= 0) goto end;
+
+        uint32_t n = str2num(name, l);
+	if (n <= UNBIT_MIN_UID) goto end;
+
+	// pointer to aliases (NULL) + original name + ipv4 + address_list + NULL
+	if (buflen < sizeof(char*)+strlen(name)+4+(sizeof(void*)*2)) {
+        	*errnop = ERANGE;
+        	*h_errnop = NO_RECOVERY;
+		return NSS_STATUS_TRYAGAIN;
+	}
+
+	*((char**) buffer) = NULL;
+    	result->h_aliases = (char**) buffer;
+    	size_t idx = sizeof(char*);
+	strcpy(buffer + idx, name);
+	result->h_name = buffer+idx;
+	idx += strlen(name) + 1;
+	result->h_addrtype = af;
+	result->h_length = 4;
+	uint32_t ip = unbit_ip(n);
+	memcpy(buffer+idx, &ip, 4);
+	idx+=4;
+	((char**) (buffer+idx))[0] = buffer+(idx-4);
+    	((char**) (buffer+idx))[1] = NULL;
+	result->h_addr_list = (char**) (buffer+idx);
+	return NSS_STATUS_SUCCESS;
+end:
+        return NSS_STATUS_NOTFOUND;
+}
+
+enum nss_status _nss_unbit_gethostbyname_r (
+    const char *name,
+    struct hostent *result,
+    char *buffer,
+    size_t buflen,
+    int *errnop,
+    int *h_errnop) {
+
+    return _nss_unbit_gethostbyname2_r(
+        name,
+        AF_UNSPEC,
+        result,
+        buffer,
+        buflen,
+        errnop,
+        h_errnop);
+}
+
