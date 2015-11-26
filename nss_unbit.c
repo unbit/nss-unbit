@@ -8,6 +8,8 @@
 #include <netdb.h>
 #include <math.h>
 #include <errno.h>
+#include <time.h>
+#include <stdlib.h>
 
 #define UNBIT_MIN_UID 30000
 #define UNBIT_HOME "/containers/"
